@@ -16,4 +16,4 @@ Go to `Project` -> `Project Settings` -> `Plugins` and enable `Layer Names`.
 
 ## License
 
-Licensed under the [MIT license](LICENCE)
+Licensed under the [MIT license](LICENSE)
