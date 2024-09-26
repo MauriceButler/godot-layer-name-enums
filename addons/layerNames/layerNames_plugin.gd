@@ -8,21 +8,31 @@ const RENDER_LAYER_COUNT := 20
 const PHYSICS_LAYER_COUNT := 32
 const NAVIGATION_LAYER_COUNT := 32
 const AVOIDANCE_LAYER_COUNT := 32
+const INPUT_WAIT_SECONDS = 1.5
 
 const VALID_IDENTIFIER_PATTERN := "[^a-z,A-Z,0-9,\\s]"
 
 var previous_text := ""
+var wait_tickets := 0
 
 func _enter_tree() -> void:
 	print("LayerNames plugin activated.")
 	ProjectSettings.settings_changed.connect(_update_layer_names)
-	_update_layer_names()
+	if not FileAccess.file_exists(OUTPUT_FILE):
+		_update_layer_names()
 	
 func _exit_tree() -> void:
 	ProjectSettings.settings_changed.disconnect(_update_layer_names)
 	remove_autoload_singleton(SINGLETON_NAME)
 	
-func _update_layer_names() -> void: 
+func _update_layer_names() -> void:
+	# delay a bit using a ticket system
+	# avoids generating a file each time a letter is typed when user modifies layer names
+	wait_tickets += 1
+	var wait_number = wait_tickets
+	await get_tree().create_timer(INPUT_WAIT_SECONDS).timeout
+	if wait_number != wait_tickets: return
+	
 	var render_layers_2d_enum_string : String = _create_enum_string("2d_render", RENDER_LAYER_COUNT)
 	var physics_layers_2d_enum_string : String = _create_enum_string("2d_physics", PHYSICS_LAYER_COUNT)
 	var navigation_layers_2d_enum_string : String = _create_enum_string("2d_navigation", NAVIGATION_LAYER_COUNT)
