@@ -7,7 +7,7 @@ Automatically generate user friendly lookups of project layer names.
 
 ## Installation
 
-Copy the `addons/layerNames` directory into your `res://addons/` directory, or install via the Asset Library
+Copy the `addons/layerNames` directory into your `res://addons/` directory, or install via the [Asset Library](https://godotengine.org/asset-library/asset/3372)
 
 Go to `Project` -> `Project Settings` -> `Plugins` and enable `Layer Names`.
 
