@@ -71,7 +71,7 @@ func _create_enum_string(layer_type : String, max_layer_count : int) -> String:
 	parts.reverse()
 	
 	var enum_name := _sanitise(" ".join(parts)) 
-	var enum_text := ["enum ", enum_name," { \n"]
+	var enum_text := ["enum ", enum_name," { \nNONE = 0,\n"]
 	
 	for index in max_layer_count:
 		var layer_number := str(index + 1)
