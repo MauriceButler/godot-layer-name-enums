@@ -20,71 +20,70 @@ func _enter_tree() -> void:
 	ProjectSettings.settings_changed.connect(_update_layer_names)
 	if not FileAccess.file_exists(OUTPUT_FILE):
 		_update_layer_names()
-	
+
 func _exit_tree() -> void:
 	ProjectSettings.settings_changed.disconnect(_update_layer_names)
 	remove_autoload_singleton(SINGLETON_NAME)
-	
+
 func _update_layer_names() -> void:
 	# delay a bit using a ticket system
 	# avoids generating a file each time a letter is typed when user modifies layer names
 	wait_tickets += 1
-	var wait_number = wait_tickets
+	var wait_number := wait_tickets
 	await get_tree().create_timer(INPUT_WAIT_SECONDS).timeout
 	if wait_number != wait_tickets: return
-	
-	var render_layers_2d_enum_string : String = _create_enum_string("2d_render", RENDER_LAYER_COUNT)
-	var physics_layers_2d_enum_string : String = _create_enum_string("2d_physics", PHYSICS_LAYER_COUNT)
-	var navigation_layers_2d_enum_string : String = _create_enum_string("2d_navigation", NAVIGATION_LAYER_COUNT)
-	
-	var render_layers_3d_enum_string : String = _create_enum_string("3d_render", RENDER_LAYER_COUNT)
-	var physics_layers_3d_enum_string : String = _create_enum_string("3d_physics", PHYSICS_LAYER_COUNT)
-	var navigation_layers_3d_enum_string : String = _create_enum_string("3d_navigation", NAVIGATION_LAYER_COUNT)
-	
-	var avoidance_layers_enum_string : String = _create_enum_string("avoidance", AVOIDANCE_LAYER_COUNT)
-	
+
+	var render_layers_2d_enum_string := _create_enum_string("2d_render", RENDER_LAYER_COUNT)
+	var physics_layers_2d_enum_string := _create_enum_string("2d_physics", PHYSICS_LAYER_COUNT)
+	var navigation_layers_2d_enum_string := _create_enum_string("2d_navigation", NAVIGATION_LAYER_COUNT)
+
+	var render_layers_3d_enum_string := _create_enum_string("3d_render", RENDER_LAYER_COUNT)
+	var physics_layers_3d_enum_string := _create_enum_string("3d_physics", PHYSICS_LAYER_COUNT)
+	var navigation_layers_3d_enum_string := _create_enum_string("3d_navigation", NAVIGATION_LAYER_COUNT)
+
+	var avoidance_layers_enum_string := _create_enum_string("avoidance", AVOIDANCE_LAYER_COUNT)
+
 	var current_text = "".join([
-		"extends Node\n", 
+		"extends Node\n\n",
 		render_layers_2d_enum_string,
 		physics_layers_2d_enum_string,
 		navigation_layers_2d_enum_string,
 		render_layers_3d_enum_string,
 		physics_layers_3d_enum_string,
 		navigation_layers_3d_enum_string,
-		avoidance_layers_enum_string,
+		avoidance_layers_enum_string
 	])
-	
+
 	if current_text == previous_text:
 		return
-		
+
 	print("Regenerating LayerNames enums")
 
 	var file = FileAccess.open(OUTPUT_FILE, FileAccess.WRITE)
 	file.store_string(current_text)
 	file.close()
 	previous_text = current_text
-	
+
 	add_autoload_singleton(SINGLETON_NAME, OUTPUT_FILE)
-	
-func _create_enum_string(layer_type : String, max_layer_count : int) -> String:
+
+func _create_enum_string(layer_type: String, max_layer_count: int) -> String:
 	var parts := layer_type.split("_")
 	parts.reverse()
-	
-	var enum_name := _sanitise(" ".join(parts)) 
-	var enum_text := ["enum ", enum_name," { \nNONE = 0,\n"]
-	
+
+	var enum_name := _sanitise(" ".join(parts))
+	var enum_text := ["enum ", enum_name," { \n\tNONE = 0,\n"]
+
 	for index in max_layer_count:
 		var layer_number := str(index + 1)
-		var name : String = ProjectSettings.get_setting(SETTING_KEY_FORMAT % [layer_type, layer_number])
-		var value := 2 ** (index)
+		var name := ProjectSettings.get_setting(SETTING_KEY_FORMAT % [layer_type, layer_number])
 		var key := _sanitise(name)
-		if !key:
+		if not key:
 			key = "LAYER_%s" % layer_number
-			
-		enum_text.push_back("%s = %s,\n" % [key, value])
-		
+
+		enum_text.push_back("\t%s = %s,\n" % [key, layer_number])
+
 	enum_text.push_back("}\n\n")
-	
+
 	return "".join(enum_text)
 
 func _sanitise(input : String) -> String:
@@ -93,7 +92,7 @@ func _sanitise(input : String) -> String:
 
 	var output = regex.sub(input, "", true)
 	output = output.to_snake_case().to_upper()
-	
+
 	if output.is_valid_identifier():
 		return output
 	else:
