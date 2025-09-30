@@ -8,10 +8,6 @@
 
 config_version=5
 
-[addons]
-
-project_layer_names/output=0
-
 [application]
 
 config/name="Project Layer Names"
