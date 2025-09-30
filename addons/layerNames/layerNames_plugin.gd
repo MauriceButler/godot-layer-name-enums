@@ -5,9 +5,10 @@ const OUTPUT_PATH := "res://addons/layerNames/generated/"
 const OUTPUT_FILE_GDSCRIPT := OUTPUT_PATH + "layerNames.gd"
 const OUTPUT_FILE_CSHARP := OUTPUT_PATH + "LayerNames.cs"
 const SINGLETON_NAME := "LayerNames"
+const CSHARP_NAMESPACE_DEFAULT := "ProjectLayerNames"
 const SETTING_KEY_FORMAT := "layer_names/%s/layer_%s"
 const OUTPUT_SETTING_KEY := "addons/project_layer_names/output"
-const NAMESPACE_SETTING_KEY := "addons/project_layer_names/C#_namespace"
+const NAMESPACE_SETTING_KEY := "addons/project_layer_names/c#_namespace"
 const INPUT_WAIT_SECONDS := 1.5
 const VALID_IDENTIFIER_PATTERN := "[^a-z,A-Z,0-9,_,\\s]"
 const BIT_SHIFT_OFFSET := 1
@@ -53,28 +54,29 @@ func _exit_tree() -> void:
 	layer_settings_cache.clear()
 
 func _register_project_settings() -> void:
-	var output_hints := {
-		"name": OUTPUT_SETTING_KEY,
-		"type": TYPE_INT,
-		"hint": PROPERTY_HINT_ENUM,
-		"hint_string": "GDScript,C#,Both",
-		"default": OutputLanguage.GDScript
-	}
-	
 	if not ProjectSettings.has_setting(OUTPUT_SETTING_KEY):
 		ProjectSettings.set_setting(OUTPUT_SETTING_KEY, OutputLanguage.GDScript)
-		ProjectSettings.add_property_info(output_hints)
+		ProjectSettings.add_property_info({
+			"name": OUTPUT_SETTING_KEY,
+			"type": TYPE_INT,
+			"hint": PROPERTY_HINT_ENUM,
+			"hint_string": "GDScript,C#,Both",
+			"default": OutputLanguage.GDScript
+		})
 		ProjectSettings.save()
 		
-	output_hints = {
-		"name": NAMESPACE_SETTING_KEY,
-		"type": TYPE_STRING,
-		"default": "Godot"
-	}
+	ProjectSettings.set_initial_value(OUTPUT_SETTING_KEY, OutputLanguage.GDScript)
+		
 	if not ProjectSettings.has_setting(NAMESPACE_SETTING_KEY):
-		ProjectSettings.set_setting(NAMESPACE_SETTING_KEY, "Godot")
-		ProjectSettings.add_property_info(output_hints)
+		ProjectSettings.set_setting(NAMESPACE_SETTING_KEY, CSHARP_NAMESPACE_DEFAULT)
+		ProjectSettings.add_property_info({
+			"name": NAMESPACE_SETTING_KEY,
+			"type": TYPE_STRING,
+			"default": CSHARP_NAMESPACE_DEFAULT
+		})
 		ProjectSettings.save()
+
+	ProjectSettings.set_initial_value(NAMESPACE_SETTING_KEY, CSHARP_NAMESPACE_DEFAULT)
 
 func _update_layer_names() -> void:
 	wait_tickets += 1
@@ -92,8 +94,8 @@ func _update_layer_names() -> void:
 		OutputLanguage.CSharp:
 			_generate_csharp_file()
 		OutputLanguage.Both:
-			_generate_gdscript_file()
 			_generate_csharp_file()
+			_generate_gdscript_file()
 
 func _write_to_file(file_path: String, content: String) -> void:
 	var file := FileAccess.open(file_path, FileAccess.WRITE)
@@ -122,13 +124,18 @@ func _generate_gdscript_file() -> void:
 
 func _generate_csharp_file() -> void:
 	var text_parts := PackedStringArray()
-	var namespace_setting := ProjectSettings.get_setting(NAMESPACE_SETTING_KEY, "Godot");
+	var namespace_setting := ProjectSettings.get_setting(NAMESPACE_SETTING_KEY);
 
-	text_parts.append("using Godot;\n\nnamespace "+namespace_setting+" {\n\tpublic partial class LayerNames : Node {\n\n")
-	
+	text_parts.append("using Godot;\n\nnamespace ")
+	text_parts.append(namespace_setting)
+	text_parts.append(" {\n\tpublic partial class LayerNames : Node {\n\t\t\n")
+
+	# Add singleton boilerplate
+	text_parts.append(_generate_singleton_boilerplate())
+
 	for layer_type in LAYER_TYPES:
 		text_parts.append(_create_enum_string(OutputLanguage.CSharp, layer_type, LAYER_TYPES[layer_type]))
-	
+
 	text_parts.append("\t}\n}\n")
 
 	var current_text := "".join(text_parts)
@@ -138,19 +145,48 @@ func _generate_csharp_file() -> void:
 
 	print("Regenerating LayerNames C# enums")
 	_write_to_file(OUTPUT_FILE_CSHARP, current_text)
+	add_autoload_singleton(SINGLETON_NAME, OUTPUT_FILE_CSHARP)
 	previous_csharp_hash = current_hash
+
+func _generate_singleton_boilerplate() -> String:
+	var boilerplate_parts := PackedStringArray()
+
+	boilerplate_parts.append("\t\tprivate static LayerNames _instance;\n")
+	boilerplate_parts.append("\t\tpublic static LayerNames Instance\n")
+	boilerplate_parts.append("\t\t{\n")
+	boilerplate_parts.append("\t\t\tget\n")
+	boilerplate_parts.append("\t\t\t{\n")
+	boilerplate_parts.append("\t\t\t\tif (_instance == null)\n")
+	boilerplate_parts.append("\t\t\t\t\tGD.PrintErr(\"LayerNames singleton not initialized.\");\n")
+	boilerplate_parts.append("\t\t\t\treturn _instance;\n")
+	boilerplate_parts.append("\t\t\t}\n")
+	boilerplate_parts.append("\t\t}\n")
+	boilerplate_parts.append("\t\tpublic override void _Ready()\n")
+	boilerplate_parts.append("\t\t{\n")
+	boilerplate_parts.append("\t\t\tif (_instance == null)\n")
+	boilerplate_parts.append("\t\t\t\t_instance = this;\n")
+	boilerplate_parts.append("\t\t\telse if (_instance != this)\n")
+	boilerplate_parts.append("\t\t\t\tQueueFree();\n")
+	boilerplate_parts.append("\t\t}\n")
+	boilerplate_parts.append("\t\tpublic override void _ExitTree()\n")
+	boilerplate_parts.append("\t\t{\n")
+	boilerplate_parts.append("\t\t\tif (_instance == this)\n")
+	boilerplate_parts.append("\t\t\t\t_instance = null;\n")
+	boilerplate_parts.append("\t\t}\n\n")
+
+	return "".join(boilerplate_parts)
 
 func _create_enum_string(language: OutputLanguage, layer_type: String, max_layer_count: int) -> String:
 	var enum_name := _get_enum_name(layer_type)
+	var enum_type := " : uint" if language == OutputLanguage.CSharp else ""
 	var enum_indent := "\t\t" if language == OutputLanguage.CSharp else ""
 	var entry_indent := "\t\t\t" if language == OutputLanguage.CSharp else "\t"
 	var public_keyword := "public " if language == OutputLanguage.CSharp else ""
-	var base_class := " : uint" if language == OutputLanguage.CSharp else ""
 	
 	var enum_parts := PackedStringArray()
 	enum_parts.append("%s%senum " % [enum_indent, public_keyword])
 	enum_parts.append(enum_name)
-	enum_parts.append(base_class)
+	enum_parts.append(enum_type)
 	enum_parts.append(" {\n")
 	enum_parts.append("%sNONE_NUM = 0,\n" % entry_indent)
 	enum_parts.append("%sNONE_BIT = 0,\n" % entry_indent)
