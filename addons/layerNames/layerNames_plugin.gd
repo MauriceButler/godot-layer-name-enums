@@ -50,33 +50,39 @@ func _enter_tree() -> void:
 
 func _disable_plugin() -> void:
 	ProjectSettings.settings_changed.disconnect(_update_layer_names)
+	_remove_project_settings()
 	remove_autoload_singleton(SINGLETON_NAME)
 	layer_settings_cache.clear()
 
 func _register_project_settings() -> void:
 	if not ProjectSettings.has_setting(OUTPUT_SETTING_KEY):
 		ProjectSettings.set_setting(OUTPUT_SETTING_KEY, OutputLanguage.GDScript)
-		ProjectSettings.add_property_info({
-			"name": OUTPUT_SETTING_KEY,
-			"type": TYPE_INT,
-			"hint": PROPERTY_HINT_ENUM,
-			"hint_string": "GDScript,C#,Both",
-			"default": OutputLanguage.GDScript
-		})
-		ProjectSettings.save()
-		
+	ProjectSettings.add_property_info({
+		"name": OUTPUT_SETTING_KEY,
+		"type": TYPE_INT,
+		"hint": PROPERTY_HINT_ENUM,
+		"hint_string": "GDScript,C#,Both",
+		"default": OutputLanguage.GDScript
+	})
 	ProjectSettings.set_initial_value(OUTPUT_SETTING_KEY, OutputLanguage.GDScript)
 		
 	if not ProjectSettings.has_setting(NAMESPACE_SETTING_KEY):
 		ProjectSettings.set_setting(NAMESPACE_SETTING_KEY, CSHARP_NAMESPACE_DEFAULT)
-		ProjectSettings.add_property_info({
-			"name": NAMESPACE_SETTING_KEY,
-			"type": TYPE_STRING,
-			"default": CSHARP_NAMESPACE_DEFAULT
-		})
-		ProjectSettings.save()
-
+	ProjectSettings.add_property_info({
+		"name": NAMESPACE_SETTING_KEY,
+		"type": TYPE_STRING,
+		"default": CSHARP_NAMESPACE_DEFAULT
+	})
 	ProjectSettings.set_initial_value(NAMESPACE_SETTING_KEY, CSHARP_NAMESPACE_DEFAULT)
+	
+	ProjectSettings.save()
+
+func _remove_project_settings() -> void:
+	ProjectSettings.clear(OUTPUT_SETTING_KEY)
+	
+	ProjectSettings.clear(NAMESPACE_SETTING_KEY)
+	
+	ProjectSettings.save()
 
 func _update_layer_names() -> void:
 	wait_tickets += 1
@@ -238,5 +244,8 @@ func _sanitise(input: String) -> String:
 	return output if output.is_valid_identifier() else ""
 
 func _add_or_update_singleton(name:String, path:String) -> void:
-	if not ProjectSettings.has_setting("autoload/" + name) or ProjectSettings.get_setting("autoload/" + name) !=  "*" + ResourceUID.path_to_uid(path):
+	if not ProjectSettings.has_setting("autoload/" + name):
 		add_autoload_singleton(name, path)
+	if ProjectSettings.get_setting("autoload/" + name) !=  "*" + path:
+		ProjectSettings.set_setting("autoload/" + name, "*" + path) # force path
+		ProjectSettings.save()
