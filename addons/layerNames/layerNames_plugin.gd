@@ -48,7 +48,7 @@ func _enter_tree() -> void:
 	
 	_update_layer_names()
 
-func _exit_tree() -> void:
+func _disable_plugin() -> void:
 	ProjectSettings.settings_changed.disconnect(_update_layer_names)
 	remove_autoload_singleton(SINGLETON_NAME)
 	layer_settings_cache.clear()
@@ -98,6 +98,7 @@ func _update_layer_names() -> void:
 			_generate_gdscript_file()
 
 func _write_to_file(file_path: String, content: String) -> void:
+	if FileAccess.get_file_as_string(file_path) == content: return
 	var file := FileAccess.open(file_path, FileAccess.WRITE)
 	file.store_string(content)
 	file.close()
@@ -119,7 +120,7 @@ func _generate_gdscript_file() -> void:
 
 	print("Regenerating LayerNames GDScript enums")
 	_write_to_file(OUTPUT_FILE_GDSCRIPT, current_text)
-	add_autoload_singleton(SINGLETON_NAME, OUTPUT_FILE_GDSCRIPT)
+	_add_or_update_singleton(SINGLETON_NAME, OUTPUT_FILE_GDSCRIPT)
 	previous_gdscript_hash = current_hash
 
 func _generate_csharp_file() -> void:
@@ -145,7 +146,7 @@ func _generate_csharp_file() -> void:
 
 	print("Regenerating LayerNames C# enums")
 	_write_to_file(OUTPUT_FILE_CSHARP, current_text)
-	add_autoload_singleton(SINGLETON_NAME, OUTPUT_FILE_CSHARP)
+	_add_or_update_singleton(SINGLETON_NAME, OUTPUT_FILE_CSHARP)
 	previous_csharp_hash = current_hash
 
 func _generate_singleton_boilerplate() -> String:
@@ -235,3 +236,7 @@ func _sanitise(input: String) -> String:
 	output = output.to_snake_case().to_upper()
 
 	return output if output.is_valid_identifier() else ""
+
+func _add_or_update_singleton(name:String, path:String) -> void:
+	if not ProjectSettings.has_setting("autoload/" + name) or ProjectSettings.get_setting("autoload/" + name) !=  "*" + ResourceUID.path_to_uid(path):
+		add_autoload_singleton(name, path)
