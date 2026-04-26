@@ -46,7 +46,7 @@ func _enter_tree() -> void:
 	
 	regex_cache.compile(VALID_IDENTIFIER_PATTERN)
 	
-	_update_layer_names()
+	_update_layer_names(true)
 
 func _disable_plugin() -> void:
 	ProjectSettings.settings_changed.disconnect(_update_layer_names)
@@ -57,6 +57,7 @@ func _disable_plugin() -> void:
 func _register_project_settings() -> void:
 	if not ProjectSettings.has_setting(OUTPUT_SETTING_KEY):
 		ProjectSettings.set_setting(OUTPUT_SETTING_KEY, OutputLanguage.GDScript)
+		
 	ProjectSettings.add_property_info({
 		"name": OUTPUT_SETTING_KEY,
 		"type": TYPE_INT,
@@ -68,6 +69,7 @@ func _register_project_settings() -> void:
 		
 	if not ProjectSettings.has_setting(NAMESPACE_SETTING_KEY):
 		ProjectSettings.set_setting(NAMESPACE_SETTING_KEY, CSHARP_NAMESPACE_DEFAULT)
+		
 	ProjectSettings.add_property_info({
 		"name": NAMESPACE_SETTING_KEY,
 		"type": TYPE_STRING,
@@ -84,7 +86,12 @@ func _remove_project_settings() -> void:
 	
 	ProjectSettings.save()
 
-func _update_layer_names() -> void:
+func _update_layer_names(force : bool = false) -> void:
+	# Feature added in Godot 4.6 to reduce thrashing on unrelated settings changes
+	if !force && ClassDB.class_has_method("ProjectSettings", "check_changed_settings_in_group"):
+		if !ProjectSettings["check_changed_settings_in_group"].call('layer_names'):
+			return
+
 	wait_tickets += 1
 	var wait_number := wait_tickets
 	await get_tree().create_timer(INPUT_WAIT_SECONDS).timeout
@@ -249,3 +256,4 @@ func _add_or_update_singleton(name:String, path:String) -> void:
 	if ProjectSettings.get_setting("autoload/" + name) !=  "*" + path:
 		ProjectSettings.set_setting("autoload/" + name, "*" + path) # force path
 		ProjectSettings.save()
+		
