@@ -48,35 +48,41 @@ func _enter_tree() -> void:
 	
 	_update_layer_names()
 
-func _exit_tree() -> void:
+func _disable_plugin() -> void:
 	ProjectSettings.settings_changed.disconnect(_update_layer_names)
+	_remove_project_settings()
 	remove_autoload_singleton(SINGLETON_NAME)
 	layer_settings_cache.clear()
 
 func _register_project_settings() -> void:
 	if not ProjectSettings.has_setting(OUTPUT_SETTING_KEY):
 		ProjectSettings.set_setting(OUTPUT_SETTING_KEY, OutputLanguage.GDScript)
-		ProjectSettings.add_property_info({
-			"name": OUTPUT_SETTING_KEY,
-			"type": TYPE_INT,
-			"hint": PROPERTY_HINT_ENUM,
-			"hint_string": "GDScript,C#,Both",
-			"default": OutputLanguage.GDScript
-		})
-		ProjectSettings.save()
-		
+	ProjectSettings.add_property_info({
+		"name": OUTPUT_SETTING_KEY,
+		"type": TYPE_INT,
+		"hint": PROPERTY_HINT_ENUM,
+		"hint_string": "GDScript,C#,Both",
+		"default": OutputLanguage.GDScript
+	})
 	ProjectSettings.set_initial_value(OUTPUT_SETTING_KEY, OutputLanguage.GDScript)
 		
 	if not ProjectSettings.has_setting(NAMESPACE_SETTING_KEY):
 		ProjectSettings.set_setting(NAMESPACE_SETTING_KEY, CSHARP_NAMESPACE_DEFAULT)
-		ProjectSettings.add_property_info({
-			"name": NAMESPACE_SETTING_KEY,
-			"type": TYPE_STRING,
-			"default": CSHARP_NAMESPACE_DEFAULT
-		})
-		ProjectSettings.save()
-
+	ProjectSettings.add_property_info({
+		"name": NAMESPACE_SETTING_KEY,
+		"type": TYPE_STRING,
+		"default": CSHARP_NAMESPACE_DEFAULT
+	})
 	ProjectSettings.set_initial_value(NAMESPACE_SETTING_KEY, CSHARP_NAMESPACE_DEFAULT)
+	
+	ProjectSettings.save()
+
+func _remove_project_settings() -> void:
+	ProjectSettings.clear(OUTPUT_SETTING_KEY)
+	
+	ProjectSettings.clear(NAMESPACE_SETTING_KEY)
+	
+	ProjectSettings.save()
 
 func _update_layer_names() -> void:
 	wait_tickets += 1
@@ -98,6 +104,7 @@ func _update_layer_names() -> void:
 			_generate_gdscript_file()
 
 func _write_to_file(file_path: String, content: String) -> void:
+	if FileAccess.get_file_as_string(file_path) == content: return
 	var file := FileAccess.open(file_path, FileAccess.WRITE)
 	file.store_string(content)
 	file.close()
@@ -119,7 +126,7 @@ func _generate_gdscript_file() -> void:
 
 	print("Regenerating LayerNames GDScript enums")
 	_write_to_file(OUTPUT_FILE_GDSCRIPT, current_text)
-	add_autoload_singleton(SINGLETON_NAME, OUTPUT_FILE_GDSCRIPT)
+	_add_or_update_singleton(SINGLETON_NAME, OUTPUT_FILE_GDSCRIPT)
 	previous_gdscript_hash = current_hash
 
 func _generate_csharp_file() -> void:
@@ -145,7 +152,7 @@ func _generate_csharp_file() -> void:
 
 	print("Regenerating LayerNames C# enums")
 	_write_to_file(OUTPUT_FILE_CSHARP, current_text)
-	add_autoload_singleton(SINGLETON_NAME, OUTPUT_FILE_CSHARP)
+	_add_or_update_singleton(SINGLETON_NAME, OUTPUT_FILE_CSHARP)
 	previous_csharp_hash = current_hash
 
 func _generate_singleton_boilerplate() -> String:
@@ -235,3 +242,10 @@ func _sanitise(input: String) -> String:
 	output = output.to_snake_case().to_upper()
 
 	return output if output.is_valid_identifier() else ""
+
+func _add_or_update_singleton(name:String, path:String) -> void:
+	if not ProjectSettings.has_setting("autoload/" + name):
+		add_autoload_singleton(name, path)
+	if ProjectSettings.get_setting("autoload/" + name) !=  "*" + path:
+		ProjectSettings.set_setting("autoload/" + name, "*" + path) # force path
+		ProjectSettings.save()
