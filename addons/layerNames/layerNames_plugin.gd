@@ -37,22 +37,21 @@ var layer_settings_cache := {}
 var regex_cache := RegEx.new()
 
 func _enter_tree() -> void:
-	print("LayerNames plugin activated.")
-	
 	_register_project_settings()
 	ProjectSettings.settings_changed.connect(_update_layer_names)
-	
 	DirAccess.make_dir_recursive_absolute(OUTPUT_PATH)
-	
 	regex_cache.compile(VALID_IDENTIFIER_PATTERN)
-	
 	_update_layer_names(true)
+
+func _enable_plugin() -> void:
+	print("LayerNames plugin activated.")
 
 func _disable_plugin() -> void:
 	ProjectSettings.settings_changed.disconnect(_update_layer_names)
 	_remove_project_settings()
 	remove_autoload_singleton(SINGLETON_NAME)
 	layer_settings_cache.clear()
+	print("LayerNames plugin deactivated.")
 
 func _register_project_settings() -> void:
 	if not ProjectSettings.has_setting(OUTPUT_SETTING_KEY):
@@ -253,6 +252,7 @@ func _sanitise(input: String) -> String:
 func _add_or_update_singleton(name:String, path:String) -> void:
 	if not ProjectSettings.has_setting("autoload/" + name):
 		add_autoload_singleton(name, path)
+		
 	if ProjectSettings.get_setting("autoload/" + name) !=  "*" + path:
 		ProjectSettings.set_setting("autoload/" + name, "*" + path) # force path
 		ProjectSettings.save()
